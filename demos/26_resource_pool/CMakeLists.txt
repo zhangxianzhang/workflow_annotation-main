@@ -1,0 +1,14 @@
+add_executable(26_resource_pool_01 26_resource_pool_01.cc)
+target_link_libraries(26_resource_pool_01 workflow)
+
+add_executable(26_resource_pool_02 26_resource_pool_02.cc)
+target_link_libraries(26_resource_pool_02 workflow)
+
+add_executable(26_resource_pool_03 26_resource_pool_03.cc)
+target_link_libraries(26_resource_pool_03 workflow)
+
+add_executable(26_issue_559_server 26_issue_559_server.cc)
+target_link_libraries(26_issue_559_server workflow)
+
+add_executable(26_issue_559_client 26_issue_559_client.cc)
+target_link_libraries(26_issue_559_client workflow)

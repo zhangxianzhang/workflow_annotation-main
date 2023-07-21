@@ -1,0 +1,66 @@
+@startuml
+
+abstract class CommTarget {
+}
+
+abstract class CommMessageOut {
+}
+
+abstract class CommMessageIn {
+}
+
+class CommConnection {
+}
+
+abstract class CommSession {
+  {field} -CommTarget target
+  {field} -CommConnection conn
+  {field} -CommMessageOut out
+  {field} -CommMessageIn in
+  .. methods ..
+  + message_out() : CommMessageOut*
+  + message_in() : CommMessageIn*
+}
+
+abstract class CommService {
+  .. methods ..
+  + init()
+  + deinit()
+  + drain()
+  + get_addr()
+  + set_ssl()
+  + get_ssl_ctx()
+  + new_session() : CommSession*
+  + handle_stop()
+  + handle_unbound()
+}
+
+class SleepSession {
+}
+
+class Communicator {
+  {field} -CommService service
+  {field} -SleepSession session
+  .. methods ..
+  + init()
+  + deinit()
+  + request() : int
+  + reply() : int
+  + push() : int
+  + bind() : int
+  + unbind()
+  + sleep() : int
+  + io_bind() : int
+  + io_unbind()
+}
+
+Communicator "1" --> "*" CommSession
+Communicator "1" --> "*" CommService
+Communicator "1" --> "*" SleepSession
+CommService "1" --> "*" CommSession : creates
+CommSession --> "1" CommTarget
+CommSession --> "1" CommConnection
+CommSession --> "1" CommMessageOut
+CommSession --> "1" CommMessageIn
+
+@enduml

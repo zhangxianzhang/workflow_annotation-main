@@ -1,0 +1,38 @@
+@startuml
+
+class ExecQueue {
+  - struct list_head session_list
+  - pthread_mutex_t mutex
+  + int init()
+  + void deinit()
+}
+
+class ExecSession {
+  - ExecQueue *queue
+  - {abstract} void execute()
+  - {abstract} void handle(int state, int error)
+  + ExecQueue *get_queue() const
+}
+
+class Executor {
+  - struct __thrdpool *thrdpool
+  + int init(size_t nthreads)
+  + void deinit()
+  + int request(ExecSession *session, ExecQueue *queue)
+  - static void executor_thread_routine(void *context)
+  - static void executor_cancel(const struct thrdpool_task *task)
+}
+
+class ExecSessionEntry {
+  - struct list_head list
+  - ExecSession *session
+  - thrdpool_t *thrdpool
+}
+
+ExecQueue "1" --> "0..*" ExecSessionEntry : contains
+ExecSessionEntry "0..*" --> "1" ExecSession : task of
+Executor --> ExecQueue : controls
+Executor --> ExecSession : controls
+ExecQueue "1" <-- "1" ExecSession : queue of
+
+@enduml
