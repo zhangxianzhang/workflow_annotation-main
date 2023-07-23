@@ -909,7 +909,7 @@ struct CommConnEntry *Communicator::accept_conn(CommServiceTarget *target,
 
 void Communicator::handle_listen_result(struct poller_result *res)
 {
-	CommService *service = (CommService *)res->data.context;
+	CommService *service = (CommService *)res->data.context;// 见int Communicator::bind(CommService *service)
 	struct CommConnEntry *entry;
 	CommServiceTarget *target;
 	int timeout;
@@ -917,7 +917,7 @@ void Communicator::handle_listen_result(struct poller_result *res)
 	switch (res->state)
 	{
 	case PR_ST_SUCCESS:
-		target = (CommServiceTarget *)res->data.result;
+		target = (CommServiceTarget *)res->data.result; // 获取poller_result的处理结果 见static void __poller_handle_listen(struct __poller_node *node,poller_t *poller)
 		entry = this->accept_conn(target, service);
 		if (entry)
 		{
@@ -932,7 +932,7 @@ void Communicator::handle_listen_result(struct poller_result *res)
 			}
 			else
 			{
-				res->data.operation = PD_OP_READ;
+				res->data.operation = PD_OP_READ; // 
 				res->data.message = NULL;
 				timeout = target->response_timeout; // 设置响应超时时间
 			}
@@ -942,7 +942,7 @@ void Communicator::handle_listen_result(struct poller_result *res)
 				res->data.fd = entry->sockfd;
 				res->data.ssl = entry->ssl;
 				res->data.context = entry;
-				if (mpoller_add(&res->data, timeout, this->mpoller) >= 0) // 将处理线程的处理结果作为可读事件传递给一个多路复用器
+				if (mpoller_add(&res->data, timeout, this->mpoller) >= 0) // 将处理线程的处理结果传递给一个多路复用器
 				{
 					if (this->stop_flag)
 						mpoller_del(res->data.fd, this->mpoller);
@@ -1001,6 +1001,7 @@ void Communicator::handle_connect_result(struct poller_result *res)
 			{
 				res->data.operation = PD_OP_READ;
 				res->data.message = NULL;
+   //新版本添加了 res->data.create_message = Communicator::create_request;
 				timeout = session->first_timeout();
 				if (timeout == 0)
 					timeout = Communicator::first_timeout_recv(session);
@@ -1408,7 +1409,7 @@ int Communicator::create_poller(size_t poller_threads)
 		.create_message		=	Communicator::create_message,
 		.partial_written	=	Communicator::partial_written,
 		.callback			=	Communicator::callback, // 当某些特定事件发生时（比如在异步 I/O 或者多线程编程中，某个操作完成或收到某个信号时），将这个事件的结果或相关信息放入 Communicator 对象的消息队列中
-		.context			=	this 
+		.context			=	this 					// // 将Communicator聚合的信息队列作为mpoller内所有poller管理事件发生后的回调参数，以至于能与处理线程通信
 	};
 
 	this->queue = msgqueue_create(4096, sizeof (struct poller_result));
@@ -1664,11 +1665,11 @@ int Communicator::request(CommSession *session, CommTarget *target)
 
 int Communicator::nonblock_listen(CommService *service)
 {
-	int sockfd = service->create_listen_fd(); // 创建监听套接字
+	int sockfd = service->create_listen_fd(); // 创建监听套接字,返回管理socket的文件的fd
 
 	if (sockfd >= 0)
 	{
-		if (__set_fd_nonblock(sockfd) >= 0) // 设置套接字为非阻塞模式
+		if (__set_fd_nonblock(sockfd) >= 0) // 设置套接字文件为非阻塞模式
 		{
 			if (__bind_and_listen(sockfd, service->bind_addr,
 								  service->addrlen) >= 0)
@@ -1683,6 +1684,7 @@ int Communicator::nonblock_listen(CommService *service)
 	return -1;
 }
 
+// 封装bind和listen
 int Communicator::bind(CommService *service)
 {
 	struct poller_data data;
@@ -1701,8 +1703,8 @@ int Communicator::bind(CommService *service)
         // 填充poller_data结构，以便将套接字添加到事件驱动的多路复用器中
 		data.operation = PD_OP_LISTEN;
 		data.fd = sockfd;
-		data.accept = Communicator::accept;
-		data.context = service;
+		data.accept = Communicator::accept; // 注册套接字listen完毕后需要执行的回调操作
+		data.context = service;				// 见void Communicator::handle_listen_result(struct poller_result *res)
 		data.result = NULL;
 
         // 使用mpoller_add函数将套接字添加到一个指定的poller线程管理的多路复用器中
