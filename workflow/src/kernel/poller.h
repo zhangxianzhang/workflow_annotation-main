@@ -75,7 +75,7 @@ callback以SUCCESS返回时，message指向成功读取的消息，
 */
 
 /* Structure defining a poller data
-	轮询结果或某个poller进行进行IO复用的相关信息。存储了poller结构进行IO复用（select、epoll等）需要的所有信息，即关联的文件描述符、需要执行的回调操作及其相关的数据，并且根据回调操作的类型，存储回调操作的结果或需要的额外数据
+	处理线程的处理结果、轮询结果或某个poller进行进行IO复用的相关信息。存储了poller结构进行IO复用（select、epoll等）需要的所有信息，即关联的文件描述符、需要执行的回调操作及其相关的数据，并且根据回调操作的类型，存储回调操作的结果或需要的额外数据
  */
 struct poller_data
 {
@@ -111,6 +111,7 @@ struct poller_data
 	union
 	{
 		SSL *ssl;
+// 新添加了 poller_message_t *(*create_message)(void *);
 		void *(*accept)(const struct sockaddr *, socklen_t, int, void *); // 用于处理接收新连接的情况
 		void *(*event)(void *);	// 用于处理特定事件
 		void *(*notify)(void *, void *);  // 用于处理通知事件

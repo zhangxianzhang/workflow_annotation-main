@@ -100,15 +100,26 @@ protected:
 	virtual ~WFClientTask() { }
 };
 
+/*
+此类是 WFNetworkTask 的特化版本，特别用于处理服务器任务。
+它包含了用于处理请求和响应的方法，处理任务的调度，以及获取与任务相关联的连接。
+此外，它还定义了内部类 Processor 和 Series，用于处理特定的子任务和管理任务序列
+*/
 template<class REQ, class RESP>
 class WFServerTask : public WFNetworkTask<REQ, RESP>
 {
 protected:
+    // 为了获取响应消息，返回响应的引用
 	virtual CommMessageOut *message_out() { return &this->resp; }
+
+    // 为了获取请求消息，返回请求的引用
 	virtual CommMessageIn *message_in() { return &this->req; }
+
+    // 处理任务的主要逻辑，根据状态和错误调用内部处理器类，处理任务处理
 	virtual void handle(int state, int error);
 
 protected:
+    // 用于任务调度，根据任务状态进行不同的处理
 	virtual void dispatch()
 	{
 		if (this->state == WFT_STATE_TOREPLY)
@@ -130,6 +141,7 @@ protected:
 	 * implementations of it's virtual functions. As a server task, to call
 	 * this function after process() and before callback() is very dangerous
 	 * and should be blocked. */
+	// 获取与任务相关联的连接
 	virtual WFConnection *get_connection() const
 	{
 		if (this->processor.task)
@@ -140,9 +152,10 @@ protected:
 	}
 
 protected:
-	CommService *service;
+	CommService *service;	// 任务所属的服务端
 
 protected:
+	// 内部处理器类，处理任务
 	class Processor : public SubTask
 	{
 	public:
@@ -153,6 +166,7 @@ protected:
 			this->task = task;
 		}
 
+		// 处理任务调度
 		virtual void dispatch()
 		{
 			this->process(this->task);
@@ -160,15 +174,17 @@ protected:
 			this->subtask_done();
 		}
 
+		// 处理完成的任务
 		virtual SubTask *done()
 		{
 			return series_of(this)->pop();
 		}
 
-		std::function<void (WFNetworkTask<REQ, RESP> *)>& process;
-		WFServerTask<REQ, RESP> *task;
+		std::function<void (WFNetworkTask<REQ, RESP> *)>& process; // 处理任务的函数
+		WFServerTask<REQ, RESP> *task; // 要处理的任务
 	} processor;
 
+    // 任务序列类，用于管理任务序列
 	class Series : public SeriesWork
 	{
 	public:
@@ -186,10 +202,11 @@ protected:
 			this->service->decref();
 		}
 
-		CommService *service;
+		CommService *service; // 任务序列所属的服务端
 	};
 
 public:
+	// 任务构造函数，接受服务端，调度器和处理函数作为参数
 	WFServerTask(CommService *service, CommScheduler *scheduler,
 				 std::function<void (WFNetworkTask<REQ, RESP> *)>& proc) :
 		WFNetworkTask<REQ, RESP>(NULL, scheduler, nullptr),
@@ -205,22 +222,25 @@ protected:
 template<class REQ, class RESP>
 void WFServerTask<REQ, RESP>::handle(int state, int error)
 {
+    // 如果输入状态是WFT_STATE_TOREPLY，表示任务已经处理完成，需要回复
 	if (state == WFT_STATE_TOREPLY)
 	{
-		this->state = WFT_STATE_TOREPLY;
-		this->target = this->get_target();
-		new Series(this);
-		this->processor.dispatch();
+		this->state = WFT_STATE_TOREPLY; // 将当前任务状态设置为需要回复
+		this->target = this->get_target(); // 获取任务目标
+		new Series(this); // 创建一个新的任务序列
+		this->processor.dispatch(); // 开始执行任务处理
 	}
+	// 如果当前任务状态是WFT_STATE_TOREPLY，但输入的状态不是，表示在任务处理过程中发生了错误
 	else if (this->state == WFT_STATE_TOREPLY)
 	{
-		this->state = state;
-		this->error = error;
-		if (error == ETIMEDOUT)
-			this->timeout_reason = TOR_TRANSMIT_TIMEOUT;
+		this->state = state; // 更新当前任务状态为输入的状态
+		this->error = error; // 更新当前任务错误为输入的错误
+		if (error == ETIMEDOUT) // 如果错误是超时错误
+			this->timeout_reason = TOR_TRANSMIT_TIMEOUT; // 设置超时原因为传输超时
 
-		this->subtask_done();
+		this->subtask_done(); // 完成子任务处理
 	}
+    // 如果输入的状态和当前状态都不是WFT_STATE_TOREPLY，表示这个任务已经不需要处理，直接删除
 	else
 		delete this;
 }

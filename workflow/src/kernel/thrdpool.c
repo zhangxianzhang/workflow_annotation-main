@@ -260,7 +260,7 @@ thrdpool_t *thrdpool_create(size_t nthreads, size_t stacksize)
 			ret = pthread_key_create(&pool->key, NULL);
 			if (ret == 0)
 			{
-				INIT_LIST_HEAD(&pool->task_queue);
+				INIT_LIST_HEAD(&pool->task_queue);  // 初始化信息池的消息队列
 				pool->stacksize = stacksize;
 				pool->nthreads = 0;
 				memset(&pool->tid, 0, sizeof (pthread_t)); //只有线程池的创建者才会设置pool->tid为0

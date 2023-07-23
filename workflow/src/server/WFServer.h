@@ -254,7 +254,7 @@ protected:
 };
 
 template<class REQ, class RESP>
-CommSession *WFServer<REQ, RESP>::new_session(long long seq, CommConnection *conn)
+CommSession *WFServer<REQ, RESP>::new_session(long long seq, CommConnection *conn) // WFNetworkTask<REQ, RESP>是CommSession的派生类
 {
 	using factory = WFNetworkTaskFactory<REQ, RESP>;
 	WFNetworkTask<REQ, RESP> *task;

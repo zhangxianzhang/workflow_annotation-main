@@ -111,7 +111,7 @@ struct __poller
     struct rb_node *tree_first;  /* 红黑树中的第一个节点 */
     struct list_head timeo_list;  /* 超时时间链表头 */
     struct list_head no_timeo_list;  /* 无超时时间链表头 */
-    struct __poller_node **nodes;  /* nodes指向数组元素为指针的动态数组，每个数组元素都指向一个与被监控对象相关联的 struct __poller_node 结构体实例。用红黑树或链表进行管理 */
+    struct __poller_node **nodes;  /* 新版本mpoller也聚合此动态数组。nodes指向数组元素为指针的动态数组，每个数组元素都指向一个与被监控对象相关联的 struct __poller_node 结构体实例。用红黑树或链表进行管理 */
     pthread_mutex_t mutex;  /* 用于同步的互斥量 */
     char buf[POLLER_BUFSIZE];  /* 缓冲区 */
 };
@@ -393,7 +393,7 @@ static int __poller_remove_node(struct __poller_node *node, poller_t *poller)
 	return removed;
 }
 
-// 静态函数：给定一个节点和缓冲区，尝试将缓存区数据追加到该节点的消息中
+// 静态函数：给定一个缓冲区和节点，尝试将缓存区数据追加到该节点的消息中
 static int __poller_append_message(const void *buf, size_t *n,
 								   struct __poller_node *node,
 								   poller_t *poller)
@@ -678,7 +678,7 @@ static void __poller_handle_listen(struct __poller_node *node,
 			break;
 
 		res->data = node->data;
-		res->data.result = p;
+		res->data.result = p; //将服务器通讯目标作为poller_result的处理结果进行存储 见void Communicator::handle_listen_result(struct poller_result *res)
 		res->error = 0;
 		res->state = PR_ST_SUCCESS;
 		
@@ -1048,7 +1048,7 @@ static void __poller_set_timer(poller_t *poller)
 }
 
 // poller线程的运行函数  
-// 在一个持续运行的线程中，监控一个多路复用器（如select、poll、epoll等）的事件，并根据事件类型调用相应的处理函数。
+// 在一个持续运行的线程中，监控一个多路复用器（如select、poll、epoll等）的事件，并根据事件类型调用相应的处理函数和注册__poller_node。
 // 同时，它也处理管道事件和超时事件
 static void *__poller_thread_routine(void *arg)
 {
@@ -1474,7 +1474,7 @@ static int __poller_data_get_event(int *event, const struct poller_data *data)
  */
 int poller_add(const struct poller_data *data, int timeout, poller_t *poller)
 {
-	struct __poller_node *res = NULL; // 用于存放需要回调函数处理的结果节点
+	struct __poller_node *res = NULL; // 监听到event、listen、notify事件后，将由回调函数存储一些临时信息
 	struct __poller_node *node; // 用于存放新创建的poller节点
 	int need_res; // 用于存放是否需要创建结果节点的标志
 	int event; // 用于存放epoll的事件类型
@@ -1508,7 +1508,7 @@ int poller_add(const struct poller_data *data, int timeout, poller_t *poller)
 		node->event = event;
 		node->in_rbtree = 0;
 		node->removed = 0;
-		node->res = res;
+		node->res = res;	// 添加‘捕获到每一个被监控的对象对应事件’后，由回调函数存储一些临时信息，
 		if (timeout >= 0)
 			__poller_node_set_timeout(timeout, node); // 如果提供了超时时间，则设置节点的超时时间
 

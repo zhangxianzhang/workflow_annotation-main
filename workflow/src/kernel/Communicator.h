@@ -207,7 +207,7 @@ public:
 CommSession是一次req->resp的交互，主要要实现message_in(), message_out()等几个虚函数，让核心知道怎么产生消息。
 对server来讲，session是被动产生的
 */
-// 表示一个通信会话，包含一个目标、一个连接、一个出站消息和一个入站消息
+// 表示一个通信会话，包含一个目标、一个连接、一个出站消息和一个入站消息。CommRequest、CommRequest和WFHttpServerTask等是CommSession的派生类
 class CommSession
 {
 private:
@@ -309,7 +309,7 @@ private:
 
 private:
     struct sockaddr *bind_addr; // 用于保存被服务器绑定套接字的地址信息
-    socklen_t addrlen;
+    socklen_t addrlen;          // 用于保存被服务器绑定套接字的地址信息
     int listen_timeout;
     int response_timeout;
     int ssl_accept_timeout;
@@ -401,7 +401,7 @@ public:
     // 将缓冲区中的数据推送到指定的session会话中，该数据将被用于之后的通信过程。
     int push(const void *buf, size_t size, CommSession *session);
 
-    // 绑定CommService的非阻塞listen套接字到mpoller指向的某个poller线程管理的多路复用器中，使其可以通过此Communicator进行通信调度。
+    // 封装bind和listen。绑定CommService的非阻塞listen套接字到mpoller指向的某个poller线程管理的多路复用器中，使其可以通过此Communicator进行通信调度。
     int bind(CommService *service);
 
     // 将先前绑定的CommService从此Communicator上解绑。

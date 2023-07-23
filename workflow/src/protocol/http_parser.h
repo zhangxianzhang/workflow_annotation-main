@@ -26,27 +26,27 @@
 
 typedef struct __http_parser
 {
-	int header_state;
-	int chunk_state;
-	size_t header_offset;
-	size_t chunk_offset;
-	size_t content_length;
-	size_t transfer_length;
-	char *version;
-	char *method;
-	char *uri;
-	char *code;
-	char *phrase;
-	struct list_head header_list;
-	char namebuf[HTTP_HEADER_NAME_MAX];
-	void *msgbuf;
-	size_t msgsize;
-	size_t bufsize;
-	char expect_continue;
-	char keep_alive;
-	char chunked;
-	char complete;
-	char is_resp;
+    int header_state;            // 当前解析头部的状态
+    int chunk_state;             // 当前解析的是一个chunked编码的消息体的状态
+    size_t header_offset;        // 头部信息在输入流中的位置
+    size_t chunk_offset;         // 在输入流中的chunk数据的位置
+    size_t content_length;       // HTTP消息的`Content-Length`，即消息主体的长度
+    size_t transfer_length;      // 在`Transfer-Encoding: chunked`情况下已解析的数据长度
+    char *version;               // HTTP的版本，如"HTTP/1.1"
+    char *method;                // HTTP请求的方法，如"GET"或"POST"等
+    char *uri;                   // 请求的URI，例如"/index.html"
+    char *code;                  // HTTP响应的状态码，例如"200"、"404"等
+    char *phrase;                // HTTP响应的原因短语，例如"OK"、"Not Found"等
+    struct list_head header_list; // 链表，用于存储HTTP消息的头部信息
+    char namebuf[HTTP_HEADER_NAME_MAX]; // 字符数组，可能用于存储解析出的头部字段名
+    void *msgbuf;                // 存储解析出的HTTP消息体
+    size_t msgsize;              // `msgbuf`中的数据长度
+    size_t bufsize;              // `msgbuf`的大小
+    char expect_continue;        // 是否期望服务器回复100 Continue
+    char keep_alive;             // 是否使用keep-alive连接
+    char chunked;                // 是否使用chunked传输编码
+    char complete;               // HTTP消息是否已完全解析
+    char is_resp;                // 该解析器是用于解析请求还是响应
 } http_parser_t;
 
 typedef struct __http_header_cursor

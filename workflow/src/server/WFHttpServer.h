@@ -53,7 +53,7 @@ inline WFHttpServer::WFServer(http_process_t proc) :
 
 // 对于新的连接，创建一个HTTP任务并设置各种参数
 template<>
-inline CommSession *WFHttpServer::new_session(long long seq, CommConnection *conn)
+inline CommSession *WFHttpServer::new_session(long long seq, CommConnection *conn) // WFHttpTask是CommSession的派生类
 {
 	WFHttpTask *task;
 
