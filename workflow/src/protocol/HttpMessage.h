@@ -309,7 +309,7 @@ public:
 	}
 
 protected:
-    // 向HTTP请求中追加数据，输入参数为数据和数据大小
+    // 将数据解析(追加) 到HTTP请求，输入参数为数据和数据大小
 	virtual int append(const void *buf, size_t *size);
 
 private:
