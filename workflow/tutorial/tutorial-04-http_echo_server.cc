@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
 
 	signal(SIGINT, sig_handler);
 
-	WFHttpServer server(process);
+	WFHttpServer server(process); 
 	port = atoi(argv[1]);
 	if (server.start(port) == 0)
 	{
