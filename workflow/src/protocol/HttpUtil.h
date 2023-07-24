@@ -141,24 +141,30 @@ private:
 	std::unordered_map<std::string, std::vector<std::string>> header_map_;
 };
 
-// 工具类，用于遍历和查找HTTP消息中的头部字段。这个类内部主要使用http_header_cursor_t结构体进行遍历和查找操作。
+// 对 HTTP 头部字段进行迭代访问的辅助类。这个类内部主要使用http_header_cursor_t结构体进行遍历和查找操作。
 class HttpHeaderCursor
 {
 public:
-	HttpHeaderCursor(const HttpMessage *message);
+	HttpHeaderCursor(const HttpMessage *message); // 构造函数，接受一个 HttpMessage 对象的指针，该对象是要进行头部字段迭代的 HTTP 消息
 	virtual ~HttpHeaderCursor();
 
 public:
+	// 移动到下一个头部字段并返回。如果还有下一个字段，那么 'header' 将被设置为该字段，并返回 true，否则返回 false
 	bool next(struct HttpMessageHeader *header);
+	// 查找具有指定名称的头部字段。如果找到了，则 'header' 将被设置为该字段并返回 true，否则返回 false
 	bool find(struct HttpMessageHeader *header);
+	// 重置光标位置，使其指向消息头部字段列表的开始位置
 	void rewind();
 
 	/* std::string interface */
 public:
+	// 类似于 next(struct HttpMessageHeader *header)，但使用 std::string 对象来存储字段名和值
 	bool next(std::string& name, std::string& value);
+	// 类似于 find(struct HttpMessageHeader *header)，但接受一个 std::string 对象作为要查找的字段名
 	bool find(const std::string& name, std::string& value);
 
 protected:
+	// 内部使用的光标对象，可能是一个指向 HTTP 消息头部字段列表中当前位置的指针或迭代器
 	http_header_cursor_t cursor;
 };
 
@@ -192,6 +198,7 @@ inline HttpHeaderCursor::~HttpHeaderCursor()
 	http_header_cursor_deinit(&this->cursor);
 }
 
+// 负责迭代到头部列表的下一个元素
 inline bool HttpHeaderCursor::next(struct HttpMessageHeader *header)
 {
 	return http_header_cursor_next(&header->name, &header->name_len,

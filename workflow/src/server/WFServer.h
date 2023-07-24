@@ -223,7 +223,7 @@ private:
 	CommScheduler *scheduler;
 };
 
-// 定义一个服务器类，继承自服务器基类，模板参数REQ和RESP分别表示请求和响应的类型
+// 定义一个服务器类，继承自服务器基类，增添了创建新的会话的函数和处理服务器任务的函数。模板参数REQ和RESP分别表示请求和响应的类型
 template<class REQ, class RESP>
 class WFServer : public WFServerBase
 {
@@ -236,7 +236,7 @@ public:
 	{
 	}
 
-	//构造函数，接受用于处理网络任务的函数对象作为参数。这会导致传入默认的服务器参数
+	//构造函数，接受用于处理服务器任务的函数对象作为参数。这会导致传入默认的服务器参数
 	WFServer(std::function<void (WFNetworkTask<REQ, RESP> *)> proc) :
 		WFServerBase(&SERVER_PARAMS_DEFAULT),
 		process(std::move(proc))
@@ -249,7 +249,7 @@ protected:
 	virtual CommSession *new_session(long long seq, CommConnection *conn);
 
 protected:
-	// 处理函数
+	// 处理服务器任务的函数，将在 new_session() 中被绑定到会话任务
 	std::function<void (WFNetworkTask<REQ, RESP> *)> process;
 };
 

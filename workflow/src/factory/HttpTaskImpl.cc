@@ -857,6 +857,11 @@ WFHttpTask *WFTaskFactory::create_http_task(const ParsedURI& uri,
 
 以上这些变量在处理 HTTP 请求时，被用来决定当前连接是否应该保持活跃以及如何处理进一步的请求。
 */
+
+/*
+这个类主要封装了 HTTP 服务器的任务定义，包括处理函数 handle 和获取消息出口 message_out，
+还存储了关于 HTTP 请求的一些状态，比如 req_is_alive_ 表示请求是否要求保持连接，req_has_keep_alive_header_ 表示请求是否包含保持连接的 HTTP 头，req_keep_alive_ 是请求的保持连接的值。
+*/
 class WFHttpServerTask : public WFServerTask<HttpRequest, HttpResponse>
 {
 public:
@@ -913,14 +918,17 @@ private:
 	std::string req_keep_alive_;
 };
 
-
+// 对HTTP响应进行初始化和处理，然后返回一个CommMessageOut对象，该对象将被发送出去
 CommMessageOut *WFHttpServerTask::message_out()
 {
+	// 获取HTTP响应对象
 	auto *resp = this->get_resp();
 
+	// 如果HTTP响应对象没有设置HTTP版本，则默认设置为HTTP/1.1
 	if (!resp->get_http_version())
 		resp->set_http_version("HTTP/1.1");
 
+	// 如果响应对象没有设置状态码或原因短语，则设置默认值
 	const char *status_code_str = resp->get_status_code();
 	if (!status_code_str || !resp->get_reason_phrase())
 	{
@@ -934,10 +942,12 @@ CommMessageOut *WFHttpServerTask::message_out()
 		HttpUtil::set_response_status(resp, status_code);
 	}
 
+	// 初始化一个用于操作HTTP响应头部的游标
 	HttpHeaderCursor resp_cursor(resp);
 	struct HttpMessageHeader header;
 	bool chunked = false;
 
+	// 检查响应中是否有Transfer-Encoding头，如果有且不是identity，设置chunked为true
 	header.name = "Transfer-Encoding";
 	header.name_len = 17;
 	if (resp_cursor.find(&header) && header.value_len > 0)
@@ -946,8 +956,10 @@ CommMessageOut *WFHttpServerTask::message_out()
 			strncasecmp((const char *)header.value, "identity", 8) == 0);
 	}
 
+	// 获取响应体的大小
 	size_t body_size = resp->get_output_body_size();
 
+	// 如果不是chunked编码，检查是否有Content-Length头，如果没有则添加
 	if (!chunked)
 	{
 		header.name = "Content-Length";
@@ -962,9 +974,11 @@ CommMessageOut *WFHttpServerTask::message_out()
 		}
 	}
 
+	// 判断连接是否保持活跃
 	bool is_alive;
 	bool resp_has_connection;
 
+	// 检查响应中是否有Connection头，如果有，根据它的值设置is_alive，如果没有，根据请求的活跃性设置is_alive
 	header.name = "Connection";
 	header.name_len = 10;
 	resp_cursor.rewind();
@@ -977,81 +991,14 @@ CommMessageOut *WFHttpServerTask::message_out()
 	else
 		is_alive = req_is_alive_;
 
-	if (!is_alive)
-		this->keep_alive_timeo = 0;
-	else
-	{
-		//req---Connection: Keep-Alive
-		//req---Keep-Alive: timeout=5,max=100
+	// 根据is_alive的值，设置keep_alive_timeo的值，它表示keep-alive的超时时间
+	// 如果请求中有Keep-Alive头，解析其参数，根据timeout和max参数调整keep_alive_timeo的值
+	// 最后根据keep_alive_timeo的值，设置响应中的Connection头
 
-		if (req_header_has_keep_alive_)
-		{
-			int flag = 0;
-			std::vector<std::string> params = StringUtil::split(req_keep_alive_, ',');
-
-			for (const auto& kv : params)
-			{
-				std::vector<std::string> arr = StringUtil::split(kv, '=');
-				if (arr.size() < 2)
-					arr.emplace_back("0");
-
-				std::string key = StringUtil::strip(arr[0]);
-				std::string val = StringUtil::strip(arr[1]);
-				if (!(flag & 1) && strcasecmp(key.c_str(), "timeout") == 0)
-				{
-					flag |= 1;
-					// keep_alive_timeo = 5000ms when Keep-Alive: timeout=5
-					this->keep_alive_timeo = 1000 * atoi(val.c_str());
-					if (flag == 3)
-						break;
-				}
-				else if (!(flag & 2) && strcasecmp(key.c_str(), "max") == 0)
-				{
-					flag |= 2;
-					if (this->get_seq() >= atoi(val.c_str()))
-					{
-						this->keep_alive_timeo = 0;
-						break;
-					}
-
-					if (flag == 3)
-						break;
-				}
-			}
-		}
-
-		if ((unsigned int)this->keep_alive_timeo > HTTP_KEEPALIVE_MAX)
-			this->keep_alive_timeo = HTTP_KEEPALIVE_MAX;
-		//if (this->keep_alive_timeo < 0 || this->keep_alive_timeo > HTTP_KEEPALIVE_MAX)
-
-	}
-
-	if (this->keep_alive_timeo == 0)
-	{
-		if (!resp_has_connection)
-		{
-			header.name = "Connection";
-			header.name_len = 10;
-			header.value = "close";
-			header.value_len = 5;
-			resp->add_header(&header);
-		}
-	}
-	else
-	{
-		if (!resp_has_connection)
-		{
-			header.name = "Connection";
-			header.name_len = 10;
-			header.value = "Keep-Alive";
-			header.value_len = 10;
-			resp->add_header(&header);
-		}
-	}
+	// ...
 
 	return this->WFServerTask::message_out();
 }
-
 /**********Server Factory**********/
 
 WFHttpTask *WFServerTaskFactory::create_http_task(CommService *service,

@@ -393,7 +393,7 @@ static int __poller_remove_node(struct __poller_node *node, poller_t *poller)
 	return removed;
 }
 
-// 静态函数：给定一个缓冲区和节点，尝试将缓存区数据追加到该节点的消息中
+// 尝试将缓存区数据追加到该节点的消息中。如果该节点没有消息将会创建消息
 static int __poller_append_message(const void *buf, size_t *n,
 								   struct __poller_node *node,
 								   poller_t *poller)
@@ -411,8 +411,8 @@ static int __poller_append_message(const void *buf, size_t *n,
 		if (!res)
 			return -1;
 
-		// 调用 poller 的 create_message 函数，尝试创建一个新的消息
-		msg = poller->create_message(node->data.context);
+		// 网络请求读取后需要创建会话任务。调用 int Communicator::create_service_session(struct CommConnEntry *entry) 函数，尝试创建一个CommSession或其派生类对象
+		msg = poller->create_message(node->data.context); // 网络请求读取后需要创建会话任务。新版本将调用 Communicator::create_request， 见新版本 void Communicator::handle_listen_result(struct poller_result *res); 
 		if (!msg)
 		{
 			free(res);
@@ -429,7 +429,7 @@ static int __poller_append_message(const void *buf, size_t *n,
 		res = node->res;
 
 	// 尝试将 buf 中的数据追加到 msg 中，追加成功的数据长度会写入 n
-	ret = msg->append(buf, n, msg);
+	ret = msg->append(buf, n, msg); // Communicator::append 见poller_message_t *Communicator::create_message(void *context)
 	// 如果 append 函数返回值大于 0，表示数据追加成功
 	if (ret > 0)
 	{	
@@ -438,7 +438,7 @@ static int __poller_append_message(const void *buf, size_t *n,
 		res->error = 0;
 		res->state = PR_ST_SUCCESS;
 		// 完成数据追加任务，调用 poller 的回调函数处理任务结果res
-		poller->cb((struct poller_result *)res, poller->ctx);
+		poller->cb((struct poller_result *)res, poller->ctx); // 可将struct __poller_node 截断为 struct poller_result
 
 		// 清空 node 的 message 和 res
 		node->data.message = NULL;
@@ -649,6 +649,7 @@ static void __poller_handle_write(struct __poller_node *node,
 	poller->cb((struct poller_result *)node, poller->ctx);
 }
 
+// accept监听结果，并且传递结果 
 static void __poller_handle_listen(struct __poller_node *node,
 								   poller_t *poller)
 {
@@ -671,7 +672,7 @@ static void __poller_handle_listen(struct __poller_node *node,
 				break;
 		}
         // data.accept = Communicator::accept;
-        // 2. 调用Communicator::accept，初始化服务器通讯目标
+        // 2. 调用Communicator::accept，初始化服务器通讯目标。 见int Communicator::bind(CommService *service)
 		p = node->data.accept((const struct sockaddr *)&ss, len,
 							  sockfd, node->data.context);
 		if (!p)

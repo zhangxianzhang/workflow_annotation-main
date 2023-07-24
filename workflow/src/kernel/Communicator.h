@@ -207,13 +207,16 @@ public:
 CommSession是一次req->resp的交互，主要要实现message_in(), message_out()等几个虚函数，让核心知道怎么产生消息。
 对server来讲，session是被动产生的
 */
-// 表示一个通信会话，包含一个目标、一个连接、一个出站消息和一个入站消息。CommRequest、CommRequest和WFHttpServerTask等是CommSession的派生类
+// 表示一个通信会话任务，包含一个目标、一个连接、一个出站消息和一个入站消息。CommRequest、CommRequest和WFHttpServerTask等是CommSession的派生类
 class CommSession
 {
 private:
     // 一系列纯虚函数，为派生类定义输出消息、输入消息、发送超时、接收超时、保持活跃超时、首次超时和处理函数
-    virtual CommMessageOut *message_out() = 0; // 往连接上要发的数据
-    virtual CommMessageIn *message_in() = 0;   // 连接上收到数据流，如何切下一个数据包
+
+    // 用于获取输出的消息
+    virtual CommMessageOut *message_out() = 0; 
+    // 用于获取输入的消息。连接上收到数据流，如何切下一个数据包
+    virtual CommMessageIn *message_in() = 0;   
     virtual int send_timeout() { return -1; }
     virtual int receive_timeout() { return -1; }
     virtual int keep_alive_timeout() { return 0; }
@@ -233,18 +236,19 @@ protected:
     long long get_seq() const { return this->seq; }
 
 private:
-    CommTarget *target;
-    CommConnection *conn;
-    CommMessageOut *out;
-    CommMessageIn *in;
-    long long seq;
+    CommTarget *target; // 为了通过任务找到通讯目标
+    CommConnection *conn; // 为了通过任务找到通讯连接信息
+    CommMessageOut *out; // 要发送的数据
+    CommMessageIn *in; // 已接收的数据
+    long long seq; // 序列号
 
 private:
-    struct timespec begin_time;
-    int timeout;
-    int passive;
+    struct timespec begin_time; // 通信开始的时间，用于计算超时
+    int timeout; // 超时时间，单位未知
+    int passive; // 被动模式标记，0表示非被动模式，非0表示被动模式
 
 public:
+    // 构造函数，初始化为非被动模式
     CommSession() { this->passive = 0; }
     virtual ~CommSession();
     friend class Communicator;
@@ -290,8 +294,14 @@ protected:
 
 private:
     // 一系列虚函数，为派生类定义新会话、停止处理、未绑定处理、创建监听套接字、新连接、初始化SSL等操作
-    virtual CommSession *new_session(long long seq, CommConnection *conn) = 0; //
+
+    // 定义新会话
+    virtual CommSession *new_session(long long seq, CommConnection *conn) = 0; 
+    
+    // 停止处理
     virtual void handle_stop(int error) {}
+    
+    // 解绑处理
     virtual void handle_unbound() = 0;
 
 private:
@@ -533,7 +543,7 @@ private:
     // 将请求的数据追加到消息中，此操作会把指定的数据追加到消息的尾部。
     static int append(const void *buf, size_t *size, poller_message_t *msg);
 
-    // 创建一个请求消息，此操作会根据指定的上下文创建一个新的请求消息。
+    // 创建一个请求消息，此操作会根据指定的上下文创建一个新的连接消息。
     static int create_service_session(struct CommConnEntry *entry);
 
     // 创建一个回应消息，此操作会根据指定的上下文创建一个新的回应消息。

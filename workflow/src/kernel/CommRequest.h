@@ -24,45 +24,62 @@
 #include "Communicator.h"
 #include "CommScheduler.h"
 
-
+// CommRequest类是网络通信请求的基本类，继承自SubTask和CommSession，能处理与网络通信相关的任务。
 class CommRequest : public SubTask, public CommSession
 {
 public:
-	CommRequest(CommSchedObject *object, CommScheduler *scheduler)
-	{
-		LOG_TRACE("CommRequest create");
-		this->scheduler = scheduler;
-		this->object = object;
-		this->wait_timeout = 0;
-	}
+    // 构造函数，创建一个新的CommRequest对象。
+    // object: 与请求关联的CommSchedObject对象。
+    // scheduler: 与请求关联的CommScheduler对象。
+    CommRequest(CommSchedObject *object, CommScheduler *scheduler)
+    {
+        LOG_TRACE("CommRequest create"); // 记录创建请求的日志。
+        this->scheduler = scheduler;     // 保存CommScheduler对象。
+        this->object = object;           // 保存CommSchedObject对象。
+        this->wait_timeout = 0;          // 初始化等待超时时间为0。
+    }
 
-	CommSchedObject *get_request_object() const { return this->object; }
-	void set_request_object(CommSchedObject *object) { this->object = object; }
-	int get_wait_timeout() const { return this->wait_timeout; }
-	void set_wait_timeout(int timeout) { this->wait_timeout = timeout; }
+    // 获取与请求关联的CommSchedObject对象。
+    CommSchedObject *get_request_object() const { return this->object; }
+    // 设置与请求关联的CommSchedObject对象。
+    void set_request_object(CommSchedObject *object) { this->object = object; }
+    // 获取等待超时时间。
+    int get_wait_timeout() const { return this->wait_timeout; }
+    // 设置等待超时时间。
+    void set_wait_timeout(int timeout) { this->wait_timeout = timeout; }
 
 public:
-	virtual void dispatch();    // key
+    // 虚函数，负责调度任务的具体实现。
+    virtual void dispatch();
 
 protected:
-	int state;
-	int error;
+    // 请求的状态。
+    int state;
+    // 请求的错误代码。
+    int error;
 
 protected:
-	CommTarget *target;
-#define TOR_NOT_TIMEOUT			0     // TOR - Time out reason
-#define TOR_WAIT_TIMEOUT		1
-#define TOR_CONNECT_TIMEOUT		2
-#define TOR_TRANSMIT_TIMEOUT	3
-	int timeout_reason;    // 超时原因上面四种
+    // 请求的目标。
+    CommTarget *target;
+    // 超时原因的枚举常量。
+    #define TOR_NOT_TIMEOUT			0     // 没有超时。
+    #define TOR_WAIT_TIMEOUT		1     // 等待超时。
+    #define TOR_CONNECT_TIMEOUT		2     // 连接超时。
+    #define TOR_TRANSMIT_TIMEOUT	3     // 传输超时。
+    // 超时原因。
+    int timeout_reason;
 
 protected:
-	int wait_timeout;
-	CommSchedObject *object;
-	CommScheduler *scheduler;
+    // 等待超时时间。
+    int wait_timeout;
+    // 与请求关联的CommSchedObject对象。
+    CommSchedObject *object;
+    // 与请求关联的CommScheduler对象。
+    CommScheduler *scheduler;
 
 protected:
-	virtual void handle(int state, int error);
+    // 虚函数，处理请求状态和错误的方法。
+    virtual void handle(int state, int error);
 };
 
 #endif

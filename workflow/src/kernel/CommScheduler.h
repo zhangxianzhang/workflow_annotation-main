@@ -197,7 +197,7 @@ public:
 	}
 
 	// 绑定通信服务函数
-	// 这里的service为了产生sockfd
+	// 封装bind和listen，并且绑定非阻塞listen套接字到mpoller中
 	int bind(CommService *service)
 	{
 		return this->comm.bind(service);

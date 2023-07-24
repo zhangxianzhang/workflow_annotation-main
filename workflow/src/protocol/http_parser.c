@@ -31,19 +31,21 @@
 #define HTTP_TRAILER_LINE_MAX	8192
 #define HTTP_MSGBUF_INIT_SIZE	2048
 
+// 表示HTTP消息头解析过程中的状态
 enum
 {
-	HPS_START_LINE,
-	HPS_HEADER_NAME,
-	HPS_HEADER_VALUE,
-	HPS_HEADER_COMPLETE
+	HPS_START_LINE,       // 表示解析HTTP的开始行的状态（例如："GET / HTTP/1.1"）
+	HPS_HEADER_NAME,      // 表示解析HTTP头部名称的状态（例如："Content-Type"）
+	HPS_HEADER_VALUE,     // 表示解析HTTP头部值的状态（例如："text/html"）
+	HPS_HEADER_COMPLETE   // 表示HTTP头部解析完成的状态
 };
 
+// 表示HTTP消息体解析过程中的状态（主要用于处理分块编码）
 enum
 {
-	CPS_CHUNK_DATA,
-	CPS_TRAILER_PART,
-	CPS_CHUNK_COMPLETE
+	CPS_CHUNK_DATA,       // 表示解析块数据的状态
+	CPS_TRAILER_PART,     // 表示解析分块数据后的附加头部信息的状态
+	CPS_CHUNK_COMPLETE    // 表示一个分块数据解析完成的状态
 };
 
 struct __header_line
@@ -563,81 +565,96 @@ void http_parser_init(int is_resp, http_parser_t *parser)
 	parser->is_resp = is_resp;
 }
 
+// 确保消息适应其内部缓冲区，并根据消息类型执行相应的解析。返回0，表示还需要继续接收
 int http_parser_append_message(const void *buf, size_t *n,
 							   http_parser_t *parser)
 {
-	int ret;
+    int ret;
 
-	if (parser->complete)
-	{
-		*n = 0;
-		return 1;
-	}
+    // 检查解析器是否已完成。如果已完成，将输入大小设置为0，并返回1
+    if (parser->complete)
+    {
+        *n = 0;
+        return 1;
+    }
 
-	if (parser->msgsize + *n + 1 > parser->bufsize)
-	{
-		size_t new_size = MAX(HTTP_MSGBUF_INIT_SIZE, 2 * parser->bufsize);
-		void *new_base;
+    // 如果消息大小超出了当前缓冲区的大小，需要重新分配内存
+    if (parser->msgsize + *n + 1 > parser->bufsize)
+    {
+        size_t new_size = MAX(HTTP_MSGBUF_INIT_SIZE, 2 * parser->bufsize);
+        void *new_base;
 
-		while (new_size < parser->msgsize + *n + 1)
-			new_size *= 2;
+        // 通过循环将缓冲区大小翻倍，直到满足新的需求
+        while (new_size < parser->msgsize + *n + 1)
+            new_size *= 2;
 
-		new_base = realloc(parser->msgbuf, new_size);
-		if (!new_base)
-			return -1;
+        // 重新分配内存，并检查是否成功
+        new_base = realloc(parser->msgbuf, new_size);
+        if (!new_base)
+            return -1;
 
-		parser->msgbuf = new_base;
-		parser->bufsize = new_size;
-	}
+        // 如果成功，更新缓冲区指针和大小
+        parser->msgbuf = new_base;
+        parser->bufsize = new_size;
+    }
 
-	memcpy((char *)parser->msgbuf + parser->msgsize, buf, *n);
-	parser->msgsize += *n;
-	if (parser->header_state != HPS_HEADER_COMPLETE)
-	{
-		ret = __parse_message_header(parser->msgbuf, parser->msgsize, parser);
-		if (ret <= 0)
-			return ret;
+    // 将新的数据拷贝到消息缓冲区，并更新消息大小
+    memcpy((char *)parser->msgbuf + parser->msgsize, buf, *n);
+    parser->msgsize += *n;
 
-		if (parser->chunked)
-		{
-			parser->chunk_offset = parser->header_offset;
-			parser->chunk_state = CPS_CHUNK_DATA;
-		}
-		else if (parser->transfer_length == (size_t)-1)
-			parser->transfer_length = parser->content_length;
-	}
+    // 如果消息头还没有解析完成，尝试解析消息头
+    if (parser->header_state != HPS_HEADER_COMPLETE)
+    {
+        ret = __parse_message_header(parser->msgbuf, parser->msgsize, parser);
+        if (ret <= 0)
+            return ret;
 
-	if (parser->transfer_length != (size_t)-1)
-	{
-		size_t total = parser->header_offset + parser->transfer_length;
+        // 根据消息头的信息，更新解析器的状态
+        if (parser->chunked)
+        {
+            parser->chunk_offset = parser->header_offset;
+            parser->chunk_state = CPS_CHUNK_DATA;
+        }
+        else if (parser->transfer_length == (size_t)-1)
+            parser->transfer_length = parser->content_length;
+    }
 
-		if (parser->msgsize >= total)
-		{
-			*n -= parser->msgsize - total;
-			parser->msgsize = total;
-			parser->complete = 1;
-			return 1;
-		}
+    // 如果存在明确的传输长度，检查是否已经接收完毕
+    if (parser->transfer_length != (size_t)-1)
+    {
+        size_t total = parser->header_offset + parser->transfer_length;
 
-		return 0;
-	}
+        // 如果已经接收完毕，更新输入大小，截断多余的数据，设置完成标志
+        if (parser->msgsize >= total)
+        {
+            *n -= parser->msgsize - total;
+            parser->msgsize = total;
+            parser->complete = 1;
+            return 1;
+        }
 
-	if (!parser->chunked)
-		return 0;
+        // 否则返回0，表示还需要继续接收
+        return 0;
+    }
 
-	if (parser->chunk_state != CPS_CHUNK_COMPLETE)
-	{
-		ret = __parse_chunk(parser->msgbuf, parser->msgsize, parser);
-		if (ret <= 0)
-			return ret;
-	}
+    // 如果不是分块传输，返回0
+    if (!parser->chunked)
+        return 0;
 
-	*n -= parser->msgsize - parser->chunk_offset;
-	parser->msgsize = parser->chunk_offset;
-	parser->complete = 1;
-	return 1;
+    // 如果分块数据还没有接收完毕，尝试解析分块数据
+    if (parser->chunk_state != CPS_CHUNK_COMPLETE)
+    {
+        ret = __parse_chunk(parser->msgbuf, parser->msgsize, parser);
+        if (ret <= 0)
+            return ret;
+    }
+
+    // 根据最后一个块的偏移，更新输入大小，截断多余的数据，设置完成标志
+    *n -= parser->msgsize - parser->chunk_offset;
+    parser->msgsize = parser->chunk_offset;
+    parser->complete = 1;
+    return 1;
 }
-
 int http_parser_header_complete(http_parser_t *parser)
 {
 	return parser->header_state == HPS_HEADER_COMPLETE;
@@ -745,6 +762,7 @@ void http_parser_deinit(http_parser_t *parser)
 	free(parser->msgbuf);
 }
 
+// 尝试获取指向头部列表中下一个元素的指针
 int http_header_cursor_next(const void **name, size_t *name_len,
 							const void **value, size_t *value_len,
 							http_header_cursor_t *cursor)

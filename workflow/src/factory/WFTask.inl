@@ -41,6 +41,9 @@ int WFNetworkTask<REQ, RESP>::get_peer_addr(struct sockaddr *addr,
 	return -1;
 }
 
+/*
+作为客户端任务，请求被发送出去，响应被接收。它具有额外的预处理函数，可以在连接建立后修改请求。并且任务完成后，会立即删除任务
+*/
 template<class REQ, class RESP>
 class WFClientTask : public WFNetworkTask<REQ, RESP>
 {
@@ -101,7 +104,7 @@ protected:
 };
 
 /*
-此类是 WFNetworkTask 的特化版本，特别用于处理服务器任务。
+此类是 WFNetworkTask 的特化版本，特别用于服务器任务。
 它包含了用于处理请求和响应的方法，处理任务的调度，以及获取与任务相关联的连接。
 此外，它还定义了内部类 Processor 和 Series，用于处理特定的子任务和管理任务序列
 */
@@ -155,7 +158,7 @@ protected:
 	CommService *service;	// 任务所属的服务端
 
 protected:
-	// 内部处理器类，处理任务
+	// 内部处理器类，处理任务。将在new_session() 中被绑定到会话任务
 	class Processor : public SubTask
 	{
 	public:
@@ -206,7 +209,7 @@ protected:
 	};
 
 public:
-	// 任务构造函数，接受服务端，调度器和处理函数作为参数
+	// 任务构造函数。将初始化内部处理器类 、绑定服务端和调度器
 	WFServerTask(CommService *service, CommScheduler *scheduler,
 				 std::function<void (WFNetworkTask<REQ, RESP> *)>& proc) :
 		WFNetworkTask<REQ, RESP>(NULL, scheduler, nullptr),

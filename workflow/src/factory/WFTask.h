@@ -218,132 +218,156 @@ protected:
 	}
 };
 
+/* WFNetworkTask 是一个模板类，是一个网络任务，这个类继承自CommRequest类。
+这个类主要封装了一个网络任务的操作，包括启动、取消、设置超时时间、设置回调函数等。
+其中的 start、dismiss、noreply、push 等函数有特殊的使用场景，如只在客户端或服务器任务中调用。
+*/
 template<class REQ, class RESP>
 class WFNetworkTask : public CommRequest
 {
 public:
-	/* start(), dismiss() are for client tasks only. */
-	void start()
-	{
-		assert(!series_of(this));
-		Workflow::start_series_work(this, nullptr);
-	}
+    // 启动网络任务，这个函数只在客户端任务中调用。
+    void start()
+    {
+        assert(!series_of(this)); // 断言这个任务不在任务序列中。
+        Workflow::start_series_work(this, nullptr); // 启动这个任务。
+    }
 
-	void dismiss()
-	{
-		assert(!series_of(this));
-		delete this;
-	}
-
-public:
-	REQ *get_req() { return &this->req; }
-	RESP *get_resp() { return &this->resp; }
+    // 取消网络任务，这个函数只在客户端任务中调用。
+    void dismiss()
+    {
+        assert(!series_of(this)); // 断言这个任务不在任务序列中。
+        delete this; // 删除这个任务。
+    }
 
 public:
-	void *user_data;
+    // 获取请求对象。
+    REQ *get_req() { return &this->req; }
+    // 获取响应对象。
+    RESP *get_resp() { return &this->resp; }
 
 public:
-	int get_state() const { return this->state; }
-	int get_error() const { return this->error; }
-
-	/* Call when error is ETIMEDOUT, return values:
-	 * TOR_NOT_TIMEOUT, TOR_WAIT_TIMEOUT, TOR_CONNECT_TIMEOUT,
-	 * TOR_TRANSMIT_TIMEOUT (send or receive).
-	 * SSL connect timeout also returns TOR_CONNECT_TIMEOUT. */
-	int get_timeout_reason() const { return this->timeout_reason; }
-
-	/* Call only in callback or server's process. */
-	long long get_task_seq() const
-	{
-		if (!this->target)
-		{
-			errno = ENOTCONN;
-			return -1;
-		}
-
-		return this->get_seq();
-	}
-
-	int get_peer_addr(struct sockaddr *addr, socklen_t *addrlen) const;
-
-	virtual WFConnection *get_connection() const = 0;
+    // 用户数据，可以用于存储任务相关的用户数据。
+    void *user_data;
 
 public:
-	/* All in milliseconds. timeout == -1 for unlimited. */
-	void set_send_timeout(int timeout) { this->send_timeo = timeout; }
-	void set_receive_timeout(int timeout) { this->receive_timeo = timeout; }
-	void set_keep_alive(int timeout) { this->keep_alive_timeo = timeout; }
+    // 获取任务的状态。
+    int get_state() const { return this->state; }
+    // 获取任务的错误代码。
+    int get_error() const { return this->error; }
+
+    // 获取任务超时的原因。
+    int get_timeout_reason() const { return this->timeout_reason; }
+
+    // 获取任务的序列号，只在回调函数或服务器的处理函数中调用。
+    long long get_task_seq() const
+    {
+        if (!this->target) // 如果目标不存在，返回错误。
+        {
+            errno = ENOTCONN;
+            return -1;
+        }
+
+        return this->get_seq(); // 返回任务的序列号。
+    }
+
+    // 获取对等方的地址，返回值是成功获取的地址的长度，如果失败，返回-1。
+    int get_peer_addr(struct sockaddr *addr, socklen_t *addrlen) const;
+
+    // 获取网络连接，这是一个纯虚函数，由派生类实现。
+    virtual WFConnection *get_connection() const = 0;
 
 public:
-	/* noreply(), push() are for server tasks only. */
-	void noreply()
-	{
-		if (this->state == WFT_STATE_TOREPLY)
-			this->state = WFT_STATE_NOREPLY;
-	}
-
-	virtual int push(const void *buf, size_t size)
-	{
-		return this->scheduler->push(buf, size, this);
-	}
+    // 设置发送超时时间（毫秒），-1表示无限超时。
+    void set_send_timeout(int timeout) { this->send_timeo = timeout; }
+    // 设置接收超时时间（毫秒），-1表示无限超时。
+    void set_receive_timeout(int timeout) { this->receive_timeo = timeout; }
+    // 设置保持连接的时间（毫秒）。
+    void set_keep_alive(int timeout) { this->keep_alive_timeo = timeout; }
 
 public:
-	void set_callback(std::function<void (WFNetworkTask<REQ, RESP> *)> cb)
-	{
-		this->callback = std::move(cb);
-	}
+    // 不回复，这个函数只在服务器任务中调用。
+    void noreply()
+    {
+        if (this->state == WFT_STATE_TOREPLY)
+            this->state = WFT_STATE_NOREPLY;
+    }
+
+    // 推送数据，这个函数只在服务器任务中调用。
+    virtual int push(const void *buf, size_t size)
+    {
+        return this->scheduler->push(buf, size, this);
+    }
+
+public:
+    // 设置任务的回调函数。
+    void set_callback(std::function<void (WFNetworkTask<REQ, RESP> *)> cb)
+    {
+        this->callback = std::move(cb);
+    }
 
 protected:
-	virtual int send_timeout() { return this->send_timeo; }
-	virtual int receive_timeout() { return this->receive_timeo; }
-	virtual int keep_alive_timeout() { return this->keep_alive_timeo; }
+    // 获取发送超时时间。
+    virtual int send_timeout() { return this->send_timeo; }
+    // 获取接收超时时间。
+    virtual int receive_timeout() { return this->receive_timeo; }
+    // 获取保持连接的时间。
+    virtual int keep_alive_timeout() { return this->keep_alive_timeo; }
 
 protected:
-	virtual SubTask *done()
-	{
-		SeriesWork *series = series_of(this);
+    // 完成任务。
+    virtual SubTask *done()
+    {
+        SeriesWork *series = series_of(this);
 
-		if (this->state == WFT_STATE_SYS_ERROR && this->error < 0)
-		{
-			this->state = WFT_STATE_SSL_ERROR;
-			this->error = -this->error;
-		}
+        if (this->state == WFT_STATE_SYS_ERROR && this->error < 0)
+        {
+            this->state = WFT_STATE_SSL_ERROR;
+            this->error = -this->error;
+        }
 
-		if (this->callback)
-			this->callback(this);
+        if (this->callback) // 如果设置了回调函数，调用回调函数。
+            this->callback(this);
 
-		delete this;
-		return series->pop();
-	}
-
-protected:
-	int send_timeo;
-	int receive_timeo;
-	int keep_alive_timeo;
-	REQ req;
-	RESP resp;
-	std::function<void (WFNetworkTask<REQ, RESP> *)> callback;
+        delete this; // 删除任务。
+        return series->pop(); // 返回任务序列的下一个任务。
+    }
 
 protected:
-	WFNetworkTask(CommSchedObject *object, CommScheduler *scheduler,
-				  std::function<void (WFNetworkTask<REQ, RESP> *)>&& cb) :
-		CommRequest(object, scheduler),
-		callback(std::move(cb))
-	{
-		LOG_TRACE("WFNetworkTask create");
-		this->user_data = NULL;
-		this->send_timeo = -1;
-		this->receive_timeo = -1;
-		this->keep_alive_timeo = 0;
-		this->target = NULL;
-		this->timeout_reason = TOR_NOT_TIMEOUT;
-		this->state = WFT_STATE_UNDEFINED;
-		this->error = 0;
-	}
+    // 发送超时时间。
+    int send_timeo;
+    // 接收超时时间。
+    int receive_timeo;
+    // 保持连接的时间。
+    int keep_alive_timeo;
+    // 请求对象。
+    REQ req;
+    // 响应对象。
+    RESP resp;
+    // 任务的回调函数。
+    std::function<void (WFNetworkTask<REQ, RESP> *)> callback;
 
-	virtual ~WFNetworkTask() { }
+protected:
+    // 构造函数。
+    WFNetworkTask(CommSchedObject *object, CommScheduler *scheduler,
+                  std::function<void (WFNetworkTask<REQ, RESP> *)>&& cb) :
+        CommRequest(object, scheduler),
+        callback(std::move(cb))
+    {
+        LOG_TRACE("WFNetworkTask create"); // 记录创建任务的日志。
+        this->user_data = NULL;
+        this->send_timeo = -1;
+        this->receive_timeo = -1;
+        this->keep_alive_timeo = 0;
+        this->target = NULL;
+        this->timeout_reason = TOR_NOT_TIMEOUT;
+        this->state = WFT_STATE_UNDEFINED;
+        this->error = 0;
+    }
+
+    // 析构函数。
+    virtual ~WFNetworkTask() { }
 };
-
 class WFTimerTask : public SleepRequest
 {
 public:

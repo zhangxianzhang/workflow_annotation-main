@@ -390,17 +390,26 @@ void HttpUtil::set_response_status(HttpResponse *resp, int status_code)
 	}
 }
 
+// 获取下一个HTTP头部字段的名称和值
 bool HttpHeaderCursor::next(std::string& name, std::string& value)
 {
+	// 声明一个 HttpMessageHeader 结构的变量，用于存储头部字段的信息
 	struct HttpMessageHeader header;
 
-	if (this->next(&header))
-	{
-		name.assign((const char *)header.name, header.name_len);
-		value.assign((const char *)header.value, header.value_len);
-		return true;
-	}
+    // 调用另一个 `next` 方法来获取下一个头部字段的信息
+    // 如果成功获取到信息，则将名称和值复制到 `name` 和 `value` 对应的字符串中，并返回 `true`
+    if (this->next(&header))
+    {
+        // 转换头部字段的名称和值为 `const char*` 类型，并复制到 `name` 和 `value` 字符串中
+        // 需要传入名称和值的长度
+        name.assign((const char *)header.name, header.name_len);
+        value.assign((const char *)header.value, header.value_len);
 
+        // 返回 `true` 表示成功获取到头部字段的信息
+        return true;
+    }
+
+    // 如果没有更多的头部字段，返回 `false`
 	return false;
 }
 

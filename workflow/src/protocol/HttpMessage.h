@@ -47,7 +47,7 @@ struct HttpMessageHeader
 };
 
 /*
-HttpMessage 类主要用于构建和解析 HTTP 消息，包括 HTTP 请求和响应。
+HttpMessage 类主要用于构建和解析 HTTP 消息(通过聚合的http_parser_t储存解析信息)，包括 HTTP 请求和响应。
 其中包含了获取和设置 HTTP 版本，检查消息是否使用了分块传输编码或 Keep-Alive，添加和设置消息头部，获取和追加消息正文等方法。
 */
 class HttpMessage : public ProtocolMessage
@@ -196,7 +196,7 @@ protected:
     // 将 HTTP 消息编码为 iovec 结构体数组，输入参数为 iovec 数组和数组的最大长度
 	virtual int encode(struct iovec vectors[], int max);
 
-    // 追加数据到 HTTP 消息，输入参数为数据和数据大小
+    // 将给定的缓冲区（buf）解析（追加）到HTTP消息中
 	virtual int append(const void *buf, size_t *size);
 
 private:

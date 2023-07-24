@@ -148,7 +148,7 @@ int WFServerBase::create_listen_fd()
 	return listen_fd;
 }
 
-// 创建新的服务器连接的方法。如果连接数量已经达到最大限制，则不会创建新的连接。
+// 创建新的服务器连接的方法。设置接受套接字选项，允许重用地址。如果连接数量已经达到最大限制，则不会创建新的连接。
 WFConnection *WFServerBase::new_connection(int accept_fd)
 {
 	if (++this->conn_count <= this->params.max_connections ||  // 检查连接数量是否超过最大限制
@@ -190,7 +190,7 @@ int WFServerBase::start(const struct sockaddr *bind_addr, socklen_t addrlen,
 	// 如果服务器初始化成功
 	if (this->init(bind_addr, addrlen, cert_file, key_file) >= 0)
 	{
-		// 如果服务器能够被调度器绑定
+		// 如果被调度器管理的服务端中非阻塞listen套接字能够添加到mpoller中
 		if (this->scheduler->bind(this) >= 0)
 			return 0;
 
