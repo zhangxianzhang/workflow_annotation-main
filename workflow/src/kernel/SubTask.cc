@@ -38,7 +38,7 @@ void SubTask::subtask_done()
 		// 任何的Task都是parellel的subTask
 		parent = cur->parent;
 		entry = cur->entry;
-		cur = cur->done();    // 调用任务回调函数
+		cur = cur->done();    // 运行时多态，调用WFServerTask类中内部处理器类Processor：调用任务回调函数
 		if (cur)   // 返回了串行的下一个task
 		{
 			cur->parent = parent;
@@ -46,7 +46,7 @@ void SubTask::subtask_done()
 			if (parent)
 				*entry = cur;
 
-			cur->dispatch();  // 不同任务分发至不同的处理请求
+			cur->dispatch();  // 运行时多态：将不同任务分发至不同的处理请求
 		}
 		else if (parent)   // 如果没有下一个任务了，就往上走
 		{

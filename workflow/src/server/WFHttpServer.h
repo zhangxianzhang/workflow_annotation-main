@@ -57,7 +57,7 @@ inline CommSession *WFHttpServer::new_session(long long seq, CommConnection *con
 {
 	WFHttpTask *task;
 
-	task = WFServerTaskFactory::create_http_task(this, this->process);
+	task = WFServerTaskFactory::create_http_task(this, this->process); // 将绑定自定义处理函数到父类WFServerTask的内部处理器类中
 	task->set_keep_alive(this->params.keep_alive_timeout);
 	task->set_receive_timeout(this->params.receive_timeout);
 	task->get_req()->set_size_limit(this->params.request_size_limit);

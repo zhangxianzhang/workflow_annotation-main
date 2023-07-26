@@ -31,7 +31,7 @@ class SubTask
 public:
 	// dispatch代表任务的发起，可以是任何行为，
 	// 并且要求任务在完成的时候调用subtask_done方法，一般这时候已经不在dispatch线程了。
-	// 虚函数，任务开始的接口，具体实现由派生类完成
+	// 纯虚函数，任务开始的接口，具体实现由派生类完成
 	virtual void dispatch() = 0;
 
 private:

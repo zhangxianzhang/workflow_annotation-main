@@ -608,7 +608,7 @@ void Communicator::handle_incoming_request(struct poller_result *res)
 	{
 	case PR_ST_SUCCESS:
 		session = entry->session;
-		state = CS_STATE_TOREPLY;
+		state = CS_STATE_TOREPLY; // 定义会话任务状态
 		pthread_mutex_lock(&target->mutex);
 		if (entry->state == CONN_STATE_SUCCESS)
 		{
@@ -762,7 +762,7 @@ void Communicator::handle_read_result(struct poller_result *res)
 	if (res->state != PR_ST_MODIFIED)
 	{
 		if (entry->service)
-			this->handle_incoming_request(res);
+			this->handle_incoming_request(res); // 将调用 WFServerTask<REQ, RESP>::processor.dispatch() 按照主线程中自定义处理函数进行任务处理
 		else
 			this->handle_incoming_reply(res);
 	}
@@ -952,6 +952,7 @@ void Communicator::handle_listen_result(struct poller_result *res)
 			else // 监听结果的处理只需要设置 PD_OP_READ 和 响应超时时间
 			{
 				res->data.operation = PD_OP_READ; // 使得在poller中进行读取
+				//新版本： res->data.create_message = Communicator::create_request; // 见 msg = node->data.create_message(node->data.context);
 				res->data.message = NULL; 
 				timeout = target->response_timeout; // 设置响应超时时间
 			}

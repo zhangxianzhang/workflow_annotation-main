@@ -122,13 +122,13 @@ protected:
 	virtual void handle(int state, int error);
 
 protected:
-    // 用于任务调度，根据任务状态进行不同的处理
+    // 分发任务的函数。用于任务调度，根据任务状态进行不同的处理
 	virtual void dispatch()
 	{
 		if (this->state == WFT_STATE_TOREPLY)
 		{
 			/* Enable get_connection() again if the reply() call is success. */
-			this->processor.task = this;
+			this->processor.task = this;  // 被 processor类 class Series类里面的SeriesWork对象聚合 
 			if (this->scheduler->reply(this) >= 0)
 				return;
 
@@ -144,7 +144,7 @@ protected:
 	 * implementations of it's virtual functions. As a server task, to call
 	 * this function after process() and before callback() is very dangerous
 	 * and should be blocked. */
-	// 获取与任务相关联的连接
+	// 获取与任务相关联的连接。服务器任务中，调用这个函数的时机很重要，因为在处理后和回调函数之间调用可能会很危险。
 	virtual WFConnection *get_connection() const
 	{
 		if (this->processor.task)
@@ -158,7 +158,7 @@ protected:
 	CommService *service;	// 任务所属的服务端
 
 protected:
-	// 内部处理器类，处理任务。将在new_session() 中被绑定到会话任务
+	// 内部处理器类，绑定的自定义处理函数进行任务处理。自定义处理函数将在new_session() 中被绑定
 	class Processor : public SubTask
 	{
 	public:
@@ -172,9 +172,9 @@ protected:
 		// 处理任务调度
 		virtual void dispatch()
 		{
-			this->process(this->task);
+			this->process(this->task); // 按照绑定的自定义处理函数进行任务处理 
 			this->task = NULL;	/* As a flag. get_conneciton() disabled. */
-			this->subtask_done();
+			this->subtask_done(); // done是任务的完成行为
 		}
 
 		// 处理完成的任务
@@ -225,7 +225,7 @@ protected:
 template<class REQ, class RESP>
 void WFServerTask<REQ, RESP>::handle(int state, int error)
 {
-    // 如果输入状态是WFT_STATE_TOREPLY，表示任务已经处理完成，需要回复
+    // 如果输入状态是WFT_STATE_TOREPLY，表示需要回复
 	if (state == WFT_STATE_TOREPLY)
 	{
 		this->state = WFT_STATE_TOREPLY; // 将当前任务状态设置为需要回复

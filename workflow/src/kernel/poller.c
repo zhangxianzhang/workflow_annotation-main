@@ -189,10 +189,21 @@ static inline int __poller_add_timerfd(int fd, poller_t *poller)
 static inline int __poller_set_timerfd(int fd, const struct timespec *abstime,
 									   poller_t *poller)
 {
+	// 创建一个 itimerspec 结构体，它是 Linux 中定时器的一个数据结构。
+	// .it_interval 字段设置为 { }，表示定时器的间隔，这里设置为空，即定时器不会重复。
+	// .it_value 字段设置为 *abstime，这是定时器的绝对触发时间，即定时器将在这个时间触发。
 	struct itimerspec timer = {
 		.it_interval	=	{ },
 		.it_value		=	*abstime // 指向struct timespec结构体的指针，表示定时器的绝对时间
 	};
+
+	// 调用 timerfd_settime 函数将定时器设置到文件描述符（fd）上。
+	// timerfd_settime 是 Linux 中的一个系统调用，用于设置定时器的触发时间。
+	// 参数 fd 是要设置的文件描述符。
+	// 参数 TFD_TIMER_ABSTIME 表示设置的时间是绝对时间，如果不设置这个标志，那么时间会被视为相对于现在的时间。
+	// 参数 &timer 是一个指向定时器设置的指针。
+	// 参数 NULL 是旧的定时器设置，这里不关心旧的设置，所以设置为 NULL。
+	// timerfd_settime 函数的返回值就是这个函数的返回值，如果设置成功，返回 0，否则返回 -1 并设置 errno。
 	return timerfd_settime(fd, TFD_TIMER_ABSTIME, &timer, NULL);
 }
 
@@ -962,60 +973,68 @@ static int __poller_handle_pipe(poller_t *poller)
 }
 
 static void __poller_handle_timeout(const struct __poller_node *time_node,
-									poller_t *poller)
+                                    poller_t *poller)
 {
-	struct __poller_node *node;
-	struct list_head *pos, *tmp;
-	LIST_HEAD(timeo_list);
+    struct __poller_node *node;  // 用于在循环中引用当前节点的指针
+    struct list_head *pos, *tmp;  // 循环迭代器
+    LIST_HEAD(timeo_list);  // 新建一个超时列表
 
-	pthread_mutex_lock(&poller->mutex);
-	list_for_each_safe(pos, tmp, &poller->timeo_list)
-	{
-		node = list_entry(pos, struct __poller_node, list);
-		if (__timeout_cmp(node, time_node) <= 0)
-		{
-			if (node->data.fd >= 0)
-			{
-				poller->nodes[node->data.fd] = NULL;
-				__poller_del_fd(node->data.fd, node->event, poller);
-			}
+    pthread_mutex_lock(&poller->mutex);  // 加锁，保证线程安全
+    // 遍历超时链表
+    list_for_each_safe(pos, tmp, &poller->timeo_list)
+    {
+        node = list_entry(pos, struct __poller_node, list);  // 获取当前节点
+        // 如果当前节点的超时时间早于或等于给定的时间节点
+        if (__timeout_cmp(node, time_node) <= 0)
+        {
+            // 如果文件描述符有效
+            if (node->data.fd >= 0)
+            {
+                poller->nodes[node->data.fd] = NULL;  // 从 poller 的节点数组中删除该节点
+                __poller_del_fd(node->data.fd, node->event, poller);  // 从 poller 的事件监听中删除该节点
+            }
 
-			list_move_tail(pos, &timeo_list);
-		}
-		else
-			break;
-	}
+            list_move_tail(pos, &timeo_list);  // 将节点移动到超时列表的尾部
+        }
+        else
+            break;  // 当前节点的超时时间晚于给定的时间节点，退出循环
+    }
 
-	while (poller->tree_first)
-	{
-		node = rb_entry(poller->tree_first, struct __poller_node, rb);
-		if (__timeout_cmp(node, time_node) < 0)
-		{
-			if (node->data.fd >= 0)
-			{
-				poller->nodes[node->data.fd] = NULL;
-				__poller_del_fd(node->data.fd, node->event, poller);
-			}
+    // 处理红黑树中的超时节点
+    while (poller->tree_first)
+    {
+        node = rb_entry(poller->tree_first, struct __poller_node, rb);  // 获取红黑树中的首个节点
+        // 如果当前节点的超时时间早于给定的时间节点
+        if (__timeout_cmp(node, time_node) < 0)
+        {
+            // 如果文件描述符有效
+            if (node->data.fd >= 0)
+            {
+                poller->nodes[node->data.fd] = NULL;  // 从 poller 的节点数组中删除该节点
+                __poller_del_fd(node->data.fd, node->event, poller);  // 从 poller 的事件监听中删除该节点
+            }
 
-			poller->tree_first = rb_next(poller->tree_first);
-			rb_erase(&node->rb, &poller->timeo_tree);
-			list_add_tail(&node->list, &timeo_list);
-		}
-		else
-			break;
-	}
+            poller->tree_first = rb_next(poller->tree_first);  // 更新红黑树首个节点
+            rb_erase(&node->rb, &poller->timeo_tree);  // 从红黑树中删除当前节点
+            list_add_tail(&node->list, &timeo_list);  // 将节点添加到超时列表的尾部
+        }
+        else
+            break;  // 当前节点的超时时间晚于给定的时间节点，退出循环
+    }
 
-	pthread_mutex_unlock(&poller->mutex);
-	while (!list_empty(&timeo_list))
-	{
-		node = list_entry(timeo_list.next, struct __poller_node, list);
-		list_del(&node->list);
+    pthread_mutex_unlock(&poller->mutex);  // 解锁
 
-		node->error = ETIMEDOUT;
-		node->state = PR_ST_ERROR;
-		free(node->res);
-		poller->cb((struct poller_result *)node, poller->ctx);
-	}
+    // 处理超时列表中的节点
+    while (!list_empty(&timeo_list))
+    {
+        node = list_entry(timeo_list.next, struct __poller_node, list);  // 获取超时列表中的首个节点
+        list_del(&node->list);  // 从超时列表中删除节点
+
+        node->error = ETIMEDOUT;  // 设置错误码为 ETIMEDOUT（操作超时）
+        node->state = PR_ST_ERROR;  // 设置节点状态为错误
+        free(node->res);  // 释放节点的资源
+        poller->cb((struct poller_result *)node, poller->ctx);  // 调用回调函数处理超时节点
+    }
 }
 
 // 设置定时器
@@ -1185,7 +1204,8 @@ static void *__poller_thread_routine(void *arg)
                 break;
         }
 
-        // 处理超时事件ler_handle_timeout(&time_node, poller);
+        // 处理超时事件
+		__poller_handle_timeout(&time_node, poller);
 	}
 
     // 在退出线程前，根据OpenSSL版本清理线程状态
@@ -1408,17 +1428,29 @@ static void __poller_insert_node(struct __poller_node *node,
 		__poller_set_timerfd(poller->timerfd, &node->timeout, poller);
 }
 
-
+/*
+设置 poller node 的超时时间
+它先获取当前的时间，然后在当前时间的基础上添加超时时间，这样就得到了超时的绝对时间。
+如果超时时间的纳秒部分超过了10^9，就把这部分时间转化为秒。
+*/
 static void __poller_node_set_timeout(int timeout, struct __poller_node *node)
 {
-	clock_gettime(CLOCK_MONOTONIC, &node->timeout);
-	node->timeout.tv_sec += timeout / 1000;
-	node->timeout.tv_nsec += timeout % 1000 * 1000000;
-	if (node->timeout.tv_nsec >= 1000000000)
-	{
-		node->timeout.tv_nsec -= 1000000000;
-		node->timeout.tv_sec++;
-	}
+    // 使用 clock_gettime 函数获取当前的时间（以纳秒为单位），存储到 node 的 timeout 字段中
+    // CLOCK_MONOTONIC 表示一个不受系统时间改变影响的单调递增的时钟
+    clock_gettime(CLOCK_MONOTONIC, &node->timeout);
+
+    // 将传入的 timeout（毫秒）转化为秒和纳秒，分别加到 node->timeout 的 tv_sec 和 tv_nsec 字段中
+    // tv_sec 是秒数，tv_nsec 是纳秒数（1秒 = 10^9纳秒）
+    node->timeout.tv_sec += timeout / 1000;  // 转换毫秒到秒
+    node->timeout.tv_nsec += timeout % 1000 * 1000000;  // 转换剩余的毫秒到纳秒
+
+    // 如果纳秒数大于等于10^9，即1秒
+    if (node->timeout.tv_nsec >= 1000000000)
+    {
+        // 减去10^9纳秒，即1秒，并且秒数加1，这样就把纳秒数归一化到了0到10^9之间
+        node->timeout.tv_nsec -= 1000000000;
+        node->timeout.tv_sec++;
+    }
 }
 
 // 根据提供的操作类型获取对应的epoll事件类型。只有事件、监听、通知才会返回1：用于存放需要回调函数处理的结果节点

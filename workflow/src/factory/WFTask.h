@@ -42,8 +42,8 @@ enum
 {
 	WFT_STATE_UNDEFINED = -1,
 	WFT_STATE_SUCCESS = CS_STATE_SUCCESS,  // 任务成功。client接收到完整的回复，或server把回复完全写进入发送缓冲（但不能确保对方一定能收到）。
-	WFT_STATE_TOREPLY = CS_STATE_TOREPLY,		/* for server task only */
-	WFT_STATE_NOREPLY = CS_STATE_TOREPLY + 1,	/* for server task only */
+	WFT_STATE_TOREPLY = CS_STATE_TOREPLY,		/* for server task only server 任务回复之前，没有被调用过task->noreply()，都是TOREPLY状态 */
+	WFT_STATE_NOREPLY = CS_STATE_TOREPLY + 1,	/* for server task only  server任务被调用了task->noreply()之后，一直是NOREPLY状态。callback里也是这个状态。连接会被关闭。 */
 	WFT_STATE_SYS_ERROR = CS_STATE_ERROR,   // 系统错误。这种情况，task->get_error()得到的是系统错误码errno。
 											// 当get_error()得到ETIMEDOUT，可以调用task->get_timeout_reason()进一步得到超时原因
 

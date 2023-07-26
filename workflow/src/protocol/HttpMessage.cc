@@ -309,56 +309,86 @@ HttpMessage& HttpMessage::operator = (HttpMessage&& msg)
 								CONNECTION_CLOSE CRLF \
 								CRLF
 
+/*
+它处理了期待连续数据的HTTP请求，主要是处理HTTP/1.1协议中定义的Expect: 100-continue请求头。
+这个函数主要处理了两种情况：一种是客户端的传输长度超过了服务器的大小限制，这种情况下，服务器会给出HTTP 417的响应并设置错误号为EMSGSIZE；
+另一种是服务器成功处理了Expect请求头，这种情况下，服务器会给出HTTP 100的响应。如果在发送响应的过程中发生错误，函数会返回-1并设置相应的错误号。
+*/
 int HttpRequest::handle_expect_continue()
 {
+	// 提取传输长度信息
 	size_t trans_len = this->parser->transfer_length;
+
 	int ret;
 
+	// 如果传输长度信息有效
 	if (trans_len != (size_t)-1)
 	{
+		// 如果头部偏移加上传输长度超过了设定的大小限制
 		if (this->parser->header_offset + trans_len > this->size_limit)
 		{
+			// 给出HTTP 417的响应，417状态码表示服务器无法满足 Expect 请求头字段的期望
 			this->feedback(HTTP_417_RESP, strlen(HTTP_417_RESP));
+			// 设置错误号为消息过长
 			errno = EMSGSIZE;
+			// 返回-1表示处理失败
 			return -1;
 		}
 	}
 
+	// 给出HTTP 100的响应，100状态码表示继续，客户端应继续其请求
 	ret = this->feedback(HTTP_100_RESP, strlen(HTTP_100_RESP));
+	// 如果实际发送的响应长度和预期的响应长度不匹配
 	if (ret != strlen(HTTP_100_RESP))
 	{
+		// 如果返回结果为非负值，即发送了部分响应，设置错误号为EAGAIN（资源暂时不可用）
 		if (ret >= 0)
 			errno = EAGAIN;
+		// 返回-1表示处理失败
 		return -1;
 	}
 
+	// 返回0表示处理成功
 	return 0;
 }
 
+/*
+将数据解析(追加) 到HTTP请求，输入参数为数据和数据大小
+如果返回值为-1，表示追加操作失败；如果返回值为0或1，表示追加操作成功。
+如果请求期待连续的数据并且请求头已经完全接收，函数将处理连续数据的情况并返回处理结果。如果追加操作失败，函数会根据错误码发送相应的HTTP错误响应。
+*/
 int HttpRequest::append(const void *buf, size_t *size)
 {
+	// 调用基类HttpMessage的append方法，将缓冲区信息解析（追加—）到HTTP请求中。
+	// append方法返回一个整数，代表操作的结果。如果返回值大于等于0，说明追加操作成功；如果返回值小于0，说明追加操作失败。
 	int ret = HttpMessage::append(buf, size);
 
-	if (ret == 0)
+	// 检查HttpMessage::append的返回结果。
+	if (ret == 0) // 如果返回值为0，表示追加操作成功，但消息尚未接收完全。
 	{
-		if (this->parser->expect_continue &&
-			http_parser_header_complete(this->parser))
+		// 如果请求期待有连续的数据，并且请求头已经完全接收
+		if (this->parser->expect_continue && http_parser_header_complete(this->parser))
 		{
+			// 设置期待连续数据的标志位为0
 			this->parser->expect_continue = 0;
+			// 处理期待连续数据的情况，并将处理结果作为返回值
 			ret = this->handle_expect_continue();
 		}
 	}
-	else if (ret < 0)
+	else if (ret < 0) // 如果返回值小于0，表示追加操作失败。
 	{
+		// 根据错误码来处理错误。这里主要处理了两种错误：
+		// 1. 如果错误码为EBADMSG（错误的消息格式），调用feedback方法发送HTTP 400错误响应；
+		// 2. 如果错误码为EMSGSIZE（消息过长），调用feedback方法发送HTTP 413错误响应。
 		if (errno == EBADMSG)
 			this->feedback(HTTP_400_RESP, strlen(HTTP_400_RESP));
 		else if (errno == EMSGSIZE)
 			this->feedback(HTTP_413_RESP, strlen(HTTP_413_RESP));
 	}
 
+	// 返回追加操作的结果。如果ret为-1，表示追加操作失败；如果ret为0或1，表示追加操作成功。
 	return ret;
 }
-
 int HttpResponse::append(const void *buf, size_t *size)
 {
 	int ret = HttpMessage::append(buf, size);
