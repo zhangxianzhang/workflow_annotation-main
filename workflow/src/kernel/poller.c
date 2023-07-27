@@ -138,7 +138,7 @@ static inline int __poller_add_fd(int fd, int event, void *data,
 	struct epoll_event ev = {
 		.events		=	event,	// 设置关注的事件类型，可以是EPOLLIN（可读）、EPOLLOUT（可写）
 		.data		=	{
-			.ptr	=	data 	// 设置关联的用户数据，这里是一个指针
+			.ptr	=	data 	// 用指针设置关联的用户数据，供__poller_thread_routine
 		}
 	};
 	// 调用 epoll_ctl() 函数向 epoll 实例（由 poller->pfd 指定）添加文件描述符（由 fd 指定）

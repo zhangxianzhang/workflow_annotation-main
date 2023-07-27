@@ -223,7 +223,7 @@ private:
 	CommScheduler *scheduler;
 };
 
-// 定义一个服务器类，继承自服务器基类，增添了创建新的会话的函数和处理服务器任务的函数。模板参数REQ和RESP分别表示请求和响应的类型
+// 定义一个服务器类，继承自服务器基类，增添了创建新会话的函数和处理服务器任务的函数对象。模板参数REQ和RESP分别表示请求和响应的类型
 template<class REQ, class RESP>
 class WFServer : public WFServerBase
 {
@@ -245,7 +245,7 @@ public:
 
 
 protected:
-	// 创建新的会话的函数
+	// 创建新会话的函数
 	virtual CommSession *new_session(long long seq, CommConnection *conn);
 
 protected:
